@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import math
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,18 @@ def format_analysis(bpm, key):
     return f"BPM: {round(float(bpm))}\nKey: {key}"
 
 
+def tempo_as_float(tempo):
+    if hasattr(tempo, "item"):
+        try:
+            return float(tempo.item())
+        except ValueError:
+            pass
+    try:
+        return float(tempo)
+    except TypeError:
+        return float(tempo[0])
+
+
 def single_video_url(url):
     parsed = urlparse(url)
     query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "list"]
@@ -58,14 +71,21 @@ def analyze_audio_file(path):
     tempo, _beats = librosa.beat.beat_track(y=y, sr=sr)
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
     key = detect_key_from_chroma_sums(chroma.sum(axis=1).tolist())
-    return float(tempo), key
+    return tempo_as_float(tempo), key
+
+
+def yt_dlp_executable():
+    venv_executable = Path(sys.executable).with_name("yt-dlp")
+    if venv_executable.exists():
+        return str(venv_executable)
+    return shutil.which("yt-dlp") or "yt-dlp"
 
 
 def download_youtube_audio(url, audio_format, output_dir):
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     command = [
-        "yt-dlp",
+        yt_dlp_executable(),
         "-x",
         "--audio-format",
         audio_format,
@@ -105,10 +125,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
-        audio_path = args.file
         if args.command == "youtube":
             audio_path = download_youtube_audio(args.url, args.format, args.output_dir)
             print(f"Audio: {audio_path}")
+        else:
+            audio_path = args.file
         bpm, key = analyze_audio_file(audio_path)
         print(format_analysis(bpm, key))
         return 0
