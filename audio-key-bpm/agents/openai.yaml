@@ -1,4 +1,0 @@
-interface:
-  display_name: "Audio Key BPM"
-  short_description: "Download audio and detect BPM/key"
-  default_prompt: "Use $audio-key-bpm to analyze this YouTube link for BPM and key, then save the audio as MP3."

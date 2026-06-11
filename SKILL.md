@@ -1,13 +1,13 @@
 ---
-name: audio-key-bpm
-description: Use when Codex needs to download audio from a YouTube URL as MP3 or WAV, or analyze an MP3/audio file for tempo/BPM and musical key such as Cmaj, Amin, F#maj, or Bbmin.
+name: beat-it
+description: Use when an agent needs to download audio from a YouTube URL as MP3 or WAV, or analyze an MP3/audio file for tempo/BPM and musical key such as Cmaj, Amin, F#maj, or Bbmin.
 ---
 
 # Audio Key BPM
 
 ## Overview
 
-Use `scripts/audio_tool.py` for repeatable audio extraction and metadata analysis. The script keeps the workflow deterministic and reports BPM plus key in compact terminal output.
+Use `scripts/audio_tool.py` for repeatable audio extraction and metadata analysis. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
 
 ## Quick Start
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Beat It"
+  short_description: "Download audio and detect BPM/key"
+  default_prompt: "Use $beat-it to analyze this YouTube link for BPM and key, then save the audio as MP3."
