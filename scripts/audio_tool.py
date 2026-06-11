@@ -4,6 +4,7 @@ import math
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
 PITCH_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
@@ -37,6 +38,12 @@ def format_analysis(bpm, key):
     return f"BPM: {round(float(bpm))}\nKey: {key}"
 
 
+def single_video_url(url):
+    parsed = urlparse(url)
+    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "list"]
+    return urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+
 def analyze_audio_file(path):
     try:
         import librosa
@@ -68,7 +75,8 @@ def download_youtube_audio(url, audio_format, output_dir):
         "%(title)s.%(ext)s",
         "--print",
         "after_move:filepath",
-        url,
+        "--no-playlist",
+        single_video_url(url),
     ]
     completed = subprocess.run(command, check=True, capture_output=True, text=True)
     paths = [line.strip() for line in completed.stdout.splitlines() if line.strip()]

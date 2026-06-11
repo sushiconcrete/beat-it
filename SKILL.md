@@ -9,6 +9,8 @@ description: Use when an agent needs to download audio from a YouTube URL as MP3
 
 Use `scripts/audio_tool.py` for repeatable audio extraction and metadata analysis. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
 
+When the skill is installed into an agent skills directory, the active user workspace may not be a Git checkout. That is fine: read this `SKILL.md` from the installed skill path and run the bundled script directly.
+
 ## Quick Start
 
 Analyze an existing MP3 or other librosa-readable audio file:
@@ -31,10 +33,12 @@ python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --fo
 
 ## Dependencies
 
-Install local command dependencies only when needed:
+Install Python dependencies in a local virtual environment for the current task, not into the system Python:
 
 ```bash
-python3 -m pip install librosa numpy yt-dlp
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install librosa numpy yt-dlp
 ```
 
 YouTube extraction also requires `ffmpeg` on `PATH` because `yt-dlp -x --audio-format` uses it for conversion.
@@ -59,5 +63,6 @@ Key: Cmaj
 ## Notes
 
 - Use `mp3` or `wav` only for `--format`.
+- YouTube playlist URLs are treated as single-video downloads; the script strips `list=` and also passes `--no-playlist`.
 - Treat BPM/key output as algorithmic estimates, not authoritative musicological annotation.
 - If dependencies are missing, install them rather than reimplementing YouTube download or audio feature extraction.
