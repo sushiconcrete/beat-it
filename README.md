@@ -17,9 +17,10 @@ beat-it/
 
 - Download YouTube audio as `mp3` or `wav`.
 - Analyze a local audio file for BPM, key, and duration.
-- Try smart-parallel comprehensive analysis for up to 10 seconds.
-- Write full `metadata.json` only when comprehensive analysis finishes within the threshold.
-- Print compact core output directly in chat-friendly text.
+- Run core analysis by default because local verification showed full metadata taking longer than 10 seconds.
+- Write full `metadata.json` when full analysis is explicitly requested and completes.
+- Print compact core output and elapsed analysis time directly in chat-friendly text.
+- Prompt the user to ask for full metadata or a specific metric after core analysis.
 
 ## Use It
 
@@ -38,11 +39,11 @@ Make sure `ffmpeg` is on your `PATH`, then run from the skill directory:
 ```bash
 python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
 python3 scripts/audio_tool.py analyze ./audio/song.mp3
-python3 scripts/audio_tool.py --core-only analyze ./audio/song.mp3
+python3 scripts/audio_tool.py --full analyze ./audio/song.mp3
 ```
 
-YouTube links with playlist parameters stay focused on the single requested video. When no `--output-dir` is provided, YouTube downloads go into a new `beat-it-...` folder under `~/Downloads`; if comprehensive analysis is fast enough, `metadata.json` is written into that same folder.
+YouTube links with playlist parameters stay focused on the single requested video. When no `--output-dir` is provided, YouTube downloads go into a new `beat-it-...` folder under `~/Downloads`; if explicit comprehensive analysis is requested, `metadata.json` is written into that same folder after it completes.
 
-Default comprehensive analysis is bounded by `--full-threshold-seconds 10`. If that run takes longer, the tool reports only core BPM/key/duration and prints that metadata was skipped so full analysis can be requested explicitly.
+Default analysis reports only core BPM/key/duration and then asks `Would you like full metadata or a specific metric?` Use `--full` to request full metadata and wait for it to complete.
 
 The agent-facing instructions live in `SKILL.md`. The README is just the human-friendly stage door.

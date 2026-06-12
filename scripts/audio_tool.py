@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import multiprocessing
 import os
 import re
 import shutil
@@ -15,9 +14,6 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
-DEFAULT_FULL_THRESHOLD_SECONDS = 10.0
-
-
 @dataclass
 class AnalysisOutcome:
     audio_path: Path
@@ -25,8 +21,7 @@ class AnalysisOutcome:
     key: str
     duration_seconds: float | None
     analysis_level: str
-    parallel_analysis_seconds: float | None
-    parallel_analysis_timed_out: bool
+    analysis_seconds: float
     metadata_path: Path | None
 
 
@@ -86,7 +81,10 @@ def load_bpm_detector_analyzers(*, include_parallel=True):
             "python3 -m pip install git+https://github.com/libraz/bpm-detector.git yt-dlp"
         ) from exc
 
-    parallel = SmartParallelAudioAnalyzer(auto_parallel=True) if include_parallel else None
+    parallel = None
+    if include_parallel:
+        with open(os.devnull, "w") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
+            parallel = SmartParallelAudioAnalyzer(auto_parallel=True)
     return AudioAnalyzer(), parallel
 
 
@@ -97,14 +95,8 @@ def _basic_info(results):
     return {
         "bpm": float(info["bpm"]),
         "key": str(info.get("key") or "Unknown"),
-        "duration": _optional_float(info.get("duration")),
+        "duration": None if info.get("duration") is None else float(info["duration"]),
     }
-
-
-def _optional_float(value):
-    if value is None:
-        return None
-    return float(value)
 
 
 def _rounded_seconds(seconds):
@@ -128,14 +120,14 @@ def _json_ready(value):
     return value
 
 
-def write_metadata(output_dir, audio_path, basic_info, full_analysis, parallel_seconds):
+def write_metadata(output_dir, audio_path, basic_info, full_analysis, analysis_seconds):
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = output_dir / "metadata.json"
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_audio": str(Path(audio_path).expanduser()),
         "analysis_level": "full",
-        "parallel_analysis_seconds": _rounded_seconds(parallel_seconds),
+        "analysis_seconds": _rounded_seconds(analysis_seconds),
         "basic_info": _json_ready(basic_info),
         "full_analysis": _json_ready(full_analysis),
     }
@@ -143,100 +135,45 @@ def write_metadata(output_dir, audio_path, basic_info, full_analysis, parallel_s
     return metadata_path
 
 
-def _parallel_analysis_worker(audio_path, queue):
-    try:
-        with open(os.devnull, "w") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
-            _basic_analyzer, parallel_analyzer = load_bpm_detector_analyzers(include_parallel=True)
-            results = parallel_analyzer.analyze_file(str(audio_path), comprehensive=True, detailed_progress=False)
-        queue.put({"ok": True, "results": results})
-    except BaseException as exc:
-        queue.put({"ok": False, "error": str(exc)})
-
-
-def run_parallel_analysis_with_timeout(audio_path, threshold_seconds, clock=time.perf_counter):
-    start = clock()
-    context = multiprocessing.get_context("spawn")
-    queue = context.Queue()
-    process = context.Process(target=_parallel_analysis_worker, args=(str(audio_path), queue))
-    process.start()
-    process.join(threshold_seconds)
-    parallel_seconds = _rounded_seconds(clock() - start)
-
-    if process.is_alive():
-        process.terminate()
-        process.join()
-        return None, parallel_seconds, True
-
-    if queue.empty():
-        raise RuntimeError("bpm-detector did not return a parallel analysis result")
-
-    payload = queue.get()
-    if not payload["ok"]:
-        raise RuntimeError(f"bpm-detector parallel analysis failed: {payload['error']}")
-    return payload["results"], parallel_seconds, False
-
-
-def run_parallel_analysis_synchronously(audio_path, threshold_seconds, clock, parallel_analyzer):
-    del threshold_seconds
-    start = clock()
-    results = parallel_analyzer.analyze_file(str(audio_path), comprehensive=True, detailed_progress=False)
-    return results, _rounded_seconds(clock() - start), False
-
-
 def analyze_audio_file(
     path,
     *,
     downloads_dir=None,
     metadata_dir=None,
-    full_threshold_seconds=DEFAULT_FULL_THRESHOLD_SECONDS,
+    full_analysis=False,
     basic_analyzer=None,
     parallel_analyzer=None,
-    parallel_runner=None,
     clock=time.perf_counter,
 ):
     audio_path = Path(path)
     if not audio_path.exists():
         raise FileNotFoundError(audio_path)
 
-    needs_parallel = full_threshold_seconds >= 0
-    if basic_analyzer is None:
-        basic_analyzer, _parallel_analyzer = load_bpm_detector_analyzers(include_parallel=False)
+    start = clock()
+    if basic_analyzer is None or (full_analysis and parallel_analyzer is None):
+        loaded_basic, loaded_parallel = load_bpm_detector_analyzers(
+            include_parallel=full_analysis and parallel_analyzer is None
+        )
+        basic_analyzer = basic_analyzer or loaded_basic
+        parallel_analyzer = parallel_analyzer or loaded_parallel
 
     basic_results = basic_analyzer.analyze_file(str(audio_path), detect_key=True, comprehensive=False)
     info = _basic_info(basic_results)
 
-    if full_threshold_seconds < 0:
+    if not full_analysis:
+        analysis_seconds = _rounded_seconds(clock() - start)
         return AnalysisOutcome(
             audio_path=audio_path,
             bpm=info["bpm"],
             key=info["key"],
             duration_seconds=info["duration"],
             analysis_level="core",
-            parallel_analysis_seconds=None,
-            parallel_analysis_timed_out=False,
+            analysis_seconds=analysis_seconds,
             metadata_path=None,
         )
 
-    if parallel_runner is None:
-        if parallel_analyzer is None:
-            parallel_runner = run_parallel_analysis_with_timeout
-        else:
-            parallel_runner = lambda audio_path, threshold_seconds, clock: run_parallel_analysis_synchronously(
-                audio_path, threshold_seconds, clock, parallel_analyzer
-            )
-    full_results, parallel_seconds, timed_out = parallel_runner(audio_path, full_threshold_seconds, clock)
-
-    if timed_out or parallel_seconds > full_threshold_seconds:
-        return AnalysisOutcome(
-            audio_path=audio_path,
-            bpm=info["bpm"],
-            key=info["key"],
-            duration_seconds=info["duration"],
-            analysis_level="core",
-            parallel_analysis_seconds=parallel_seconds,
-            parallel_analysis_timed_out=timed_out,
-            metadata_path=None,
-        )
+    full_results = parallel_analyzer.analyze_file(str(audio_path), comprehensive=True, detailed_progress=False)
+    analysis_seconds = _rounded_seconds(clock() - start)
 
     output_dir = Path(metadata_dir) if metadata_dir is not None else analysis_output_dir(
         downloads_dir or default_downloads_dir(), audio_path
@@ -246,7 +183,7 @@ def analyze_audio_file(
         audio_path,
         info,
         full_results,
-        parallel_seconds,
+        analysis_seconds,
     )
     return AnalysisOutcome(
         audio_path=audio_path,
@@ -254,8 +191,7 @@ def analyze_audio_file(
         key=info["key"],
         duration_seconds=info["duration"],
         analysis_level="full",
-        parallel_analysis_seconds=parallel_seconds,
-        parallel_analysis_timed_out=False,
+        analysis_seconds=analysis_seconds,
         metadata_path=metadata_path,
     )
 
@@ -267,27 +203,25 @@ def format_analysis(outcome):
     ]
     if outcome.duration_seconds is not None:
         lines.append(f"Duration: {outcome.duration_seconds:.1f}s")
-    if outcome.parallel_analysis_seconds is not None:
-        lines.append(f"Parallel analysis: {outcome.parallel_analysis_seconds:.2f}s")
+    lines.append(f"Analysis took: {outcome.analysis_seconds:.2f}s")
     if outcome.metadata_path is not None:
         lines.append(f"Metadata: {outcome.metadata_path}")
-    elif outcome.analysis_level == "core" and outcome.parallel_analysis_seconds is not None:
-        lines.append("Metadata: skipped; request full analysis if needed")
+    elif outcome.analysis_level == "core":
+        lines.append("Would you like full metadata or a specific metric?")
     return "\n".join(lines)
 
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Download YouTube audio and analyze it with libraz/bpm-detector.")
     parser.add_argument(
-        "--full-threshold-seconds",
-        type=float,
-        default=DEFAULT_FULL_THRESHOLD_SECONDS,
-        help="Write full metadata only when smart-parallel comprehensive analysis finishes within this many seconds.",
+        "--full",
+        action="store_true",
+        help="Request comprehensive smart-parallel analysis and metadata output. This can take a while.",
     )
     parser.add_argument(
         "--core-only",
         action="store_true",
-        help="Skip comprehensive analysis and report only BPM/key/duration.",
+        help="Report only BPM/key/duration. This is the default after the local full-metadata benchmark exceeded 10 seconds.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -305,7 +239,7 @@ def build_parser():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-    full_threshold_seconds = -1.0 if args.core_only else args.full_threshold_seconds
+    full_analysis = args.full and not args.core_only
 
     try:
         if args.command == "youtube":
@@ -319,7 +253,7 @@ def main(argv=None):
         outcome = analyze_audio_file(
             audio_path,
             metadata_dir=metadata_dir,
-            full_threshold_seconds=full_threshold_seconds,
+            full_analysis=full_analysis,
         )
         print(format_analysis(outcome))
         return 0

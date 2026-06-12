@@ -7,7 +7,7 @@ description: Use when an agent needs to download audio from a YouTube URL as MP3
 
 ## Overview
 
-Use `scripts/audio_tool.py` for repeatable audio extraction and music analysis. The script uses `libraz/bpm-detector` for core BPM/key detection and bounded smart-parallel comprehensive analysis. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
+Use `scripts/audio_tool.py` for repeatable audio extraction and music analysis. The script uses `libraz/bpm-detector` for core BPM/key detection. Local verification showed smart-parallel comprehensive analysis taking longer than 10 seconds on the attached test file, so the default command reports core analysis only; full metadata is opt-in. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
 
 When the skill is installed into an agent skills directory, the active user workspace may not be a Git checkout. That is fine: read this `SKILL.md` from the installed skill path and run the bundled script directly.
 
@@ -31,10 +31,10 @@ Download as WAV instead:
 python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format wav
 ```
 
-Skip full metadata and return core analysis only:
+Request full metadata explicitly:
 
 ```bash
-python3 scripts/audio_tool.py --core-only analyze /path/to/song.mp3
+python3 scripts/audio_tool.py --full analyze /path/to/song.mp3
 ```
 
 ## Dependencies
@@ -57,20 +57,25 @@ The command always prints core information:
 BPM: 128
 Key: Cmaj
 Duration: 180.0s
-Parallel analysis: 10.01s
-Metadata: skipped; request full analysis if needed
+Analysis took: 1.23s
+Would you like full metadata or a specific metric?
 ```
 
-By default the script attempts comprehensive smart-parallel analysis for up to 10 seconds. If it finishes within that threshold, the script writes `metadata.json` with full `bpm-detector` output. If it takes longer, the script reports only core BPM/key/duration and leaves full analysis for a later explicit request.
+By default the script reports only core BPM/key/duration, then asks whether the user wants full metadata or a specific metric. Use `--full` to request comprehensive smart-parallel analysis and wait for it to complete. When full analysis completes, the script writes `metadata.json` with full `bpm-detector` output.
 
-For YouTube input without `--output-dir`, the downloaded audio is saved inside a new folder under `~/Downloads`; fast comprehensive metadata is written to the same folder. The YouTube command prints the saved audio path first, then the same analysis:
+For YouTube input without `--output-dir`, the downloaded audio is saved inside a new folder under `~/Downloads`; explicit comprehensive metadata is written to the same folder after it completes. The YouTube command prints the saved audio path first, then the same analysis:
 
 ```text
 Audio: /Users/me/Downloads/beat-it-youtube-audio-20260612-120000/example.mp3
 BPM: 128
 Key: Cmaj
 Duration: 180.0s
-Parallel analysis: 8.50s
+```
+
+With `--full`, full analysis also reports metadata:
+
+```text
+Analysis took: 45.25s
 Metadata: /Users/me/Downloads/beat-it-youtube-audio-20260612-120000/metadata.json
 ```
 
@@ -80,4 +85,4 @@ Metadata: /Users/me/Downloads/beat-it-youtube-audio-20260612-120000/metadata.jso
 - YouTube playlist URLs are treated as single-video downloads; the script strips `list=` and also passes `--no-playlist`.
 - Treat BPM/key output as algorithmic estimates, not authoritative musicological annotation.
 - If dependencies are missing, install them rather than reimplementing YouTube download or audio feature extraction.
-- Use `--full-threshold-seconds N` to change the cutoff for writing full metadata.
+- Use `--full` to request full metadata and wait for it to complete.
