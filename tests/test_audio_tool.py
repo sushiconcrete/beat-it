@@ -11,7 +11,27 @@ from unittest.mock import patch
 from scripts import audio_tool
 
 
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "audio_tool.py"
+SKILL_PATH = Path(__file__).resolve().parents[1] / "SKILL.md"
+
+
 class AudioToolTests(unittest.TestCase):
+    def test_script_declares_uv_managed_dependencies_inline(self):
+        script = SCRIPT_PATH.read_text()
+
+        self.assertIn("# /// script", script)
+        self.assertIn('requires-python = ">=3.11"', script)
+        self.assertIn('"bpm-detector @ git+https://github.com/libraz/bpm-detector.git@v1.1.0"', script)
+        self.assertIn('"yt-dlp', script)
+
+    def test_skill_instructions_use_uv_run_instead_of_task_local_venv(self):
+        skill = SKILL_PATH.read_text()
+
+        self.assertIn("uv run scripts/audio_tool.py analyze /path/to/song.mp3", skill)
+        self.assertIn("uv run scripts/audio_tool.py youtube", skill)
+        self.assertNotIn("python3 -m venv", skill)
+        self.assertNotIn("pip install", skill)
+
     def test_default_analysis_uses_core_only_after_slow_local_benchmark(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             audio_path = Path(temp_dir) / "Ophelia.mp3"
@@ -241,7 +261,7 @@ class AudioToolTests(unittest.TestCase):
 
     def test_load_bpm_detector_analyzers_reports_missing_dependency(self):
         with patch.dict(sys.modules, {"bpm_detector": None}):
-            with self.assertRaisesRegex(RuntimeError, "bpm-detector"):
+            with self.assertRaisesRegex(RuntimeError, "uv run scripts/audio_tool.py"):
                 audio_tool.load_bpm_detector_analyzers()
 
 

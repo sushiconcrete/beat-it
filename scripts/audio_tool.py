@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "bpm-detector @ git+https://github.com/libraz/bpm-detector.git@v1.1.0",
+#   "yt-dlp>=2025.1.15",
+# ]
+# ///
 import argparse
 import json
 import os
@@ -77,8 +84,8 @@ def load_bpm_detector_analyzers(*, include_parallel=True):
         from bpm_detector import AudioAnalyzer, SmartParallelAudioAnalyzer
     except ImportError as exc:
         raise RuntimeError(
-            "Install bpm-detector from libraz/bpm-detector to analyze audio: "
-            "python3 -m pip install git+https://github.com/libraz/bpm-detector.git yt-dlp"
+            "Run this skill with uv so its inline Python dependencies are installed once "
+            "and reused from uv's cache: uv run scripts/audio_tool.py analyze /path/to/song.mp3"
         ) from exc
 
     parallel = None

@@ -7,7 +7,7 @@ description: Use when an agent needs to download audio from a YouTube URL as MP3
 
 ## Overview
 
-Use `scripts/audio_tool.py` for repeatable audio extraction and music analysis. The script uses `libraz/bpm-detector` for core BPM/key detection. Local verification showed smart-parallel comprehensive analysis taking longer than 10 seconds on the attached test file, so the default command reports core analysis only; full metadata is opt-in. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
+Use `uv run scripts/audio_tool.py` for repeatable audio extraction and music analysis. The script declares its Python dependencies inline with PEP 723 metadata, so `uv` installs them into its shared cache on first use and reuses them across later sessions. Local verification showed smart-parallel comprehensive analysis taking longer than 10 seconds on the attached test file, so the default command reports core analysis only; full metadata is opt-in. This skill follows the Agent Skills layout used by Anthropic Claude Code and OpenAI Codex: root `SKILL.md`, optional `scripts/`, and optional product metadata under `agents/`.
 
 When the skill is installed into an agent skills directory, the active user workspace may not be a Git checkout. That is fine: read this `SKILL.md` from the installed skill path and run the bundled script directly.
 
@@ -16,38 +16,30 @@ When the skill is installed into an agent skills directory, the active user work
 Analyze an existing MP3 or other librosa-readable audio file:
 
 ```bash
-python3 scripts/audio_tool.py analyze /path/to/song.mp3
+uv run scripts/audio_tool.py analyze /path/to/song.mp3
 ```
 
 Download a YouTube URL as MP3 and analyze it:
 
 ```bash
-python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
+uv run scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
 ```
 
 Download as WAV instead:
 
 ```bash
-python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format wav
+uv run scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format wav
 ```
 
 Request full metadata explicitly:
 
 ```bash
-python3 scripts/audio_tool.py --full analyze /path/to/song.mp3
+uv run scripts/audio_tool.py --full analyze /path/to/song.mp3
 ```
 
 ## Dependencies
 
-Install Python dependencies in a local virtual environment for the current task, not into the system Python:
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install "git+https://github.com/libraz/bpm-detector.git" yt-dlp
-```
-
-YouTube extraction also requires `ffmpeg` on `PATH` because `yt-dlp -x --audio-format` uses it for conversion.
+Requires `uv` and `ffmpeg` on `PATH`. Do not create a task-local virtual environment for this skill. Run the bundled script with `uv run`; `uv` reads the script metadata, creates an isolated cached environment on first use, and reuses it later. YouTube extraction requires `ffmpeg` because `yt-dlp -x --audio-format` uses it for conversion.
 
 ## Output
 
@@ -84,5 +76,5 @@ Metadata: /Users/me/Downloads/beat-it-youtube-audio-20260612-120000/metadata.jso
 - Use `mp3` or `wav` only for `--format`.
 - YouTube playlist URLs are treated as single-video downloads; the script strips `list=` and also passes `--no-playlist`.
 - Treat BPM/key output as algorithmic estimates, not authoritative musicological annotation.
-- If dependencies are missing, install them rather than reimplementing YouTube download or audio feature extraction.
+- If Python dependencies are missing, rerun the command with `uv run` rather than reimplementing YouTube download or audio feature extraction.
 - Use `--full` to request full metadata and wait for it to complete.

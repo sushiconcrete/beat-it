@@ -26,20 +26,12 @@ beat-it/
 
 Install from GitHub as a root-level Agent Skill. The repo itself is the skill directory: `SKILL.md` lives at the root, with `scripts/` beside it.
 
-Set up task-local dependencies:
+Make sure `uv` and `ffmpeg` are on your `PATH`, then run from the skill directory. The script declares its Python dependencies inline, so `uv` creates a cached isolated environment on first use and reuses it later:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install "git+https://github.com/libraz/bpm-detector.git" yt-dlp
-```
-
-Make sure `ffmpeg` is on your `PATH`, then run from the skill directory:
-
-```bash
-python3 scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
-python3 scripts/audio_tool.py analyze ./audio/song.mp3
-python3 scripts/audio_tool.py --full analyze ./audio/song.mp3
+uv run scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
+uv run scripts/audio_tool.py analyze ./audio/song.mp3
+uv run scripts/audio_tool.py --full analyze ./audio/song.mp3
 ```
 
 YouTube links with playlist parameters stay focused on the single requested video. When no `--output-dir` is provided, YouTube downloads go into a new `beat-it-...` folder under `~/Downloads`; if explicit comprehensive analysis is requested, `metadata.json` is written into that same folder after it completes.
