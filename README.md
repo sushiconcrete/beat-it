@@ -26,13 +26,17 @@ beat-it/
 
 Install from GitHub as a root-level Agent Skill. The repo itself is the skill directory: `SKILL.md` lives at the root, with `scripts/` beside it.
 
-Make sure `uv` and `ffmpeg` are on your `PATH`, then run from the skill directory. The script declares its Python dependencies inline, so `uv` creates a cached isolated environment on first use and reuses it later:
+Make sure `uv` and `ffmpeg` are on your `PATH`, then run from the skill directory. Do not create a task-local `.venv` for this skill.
+
+The script declares its Python dependencies inline with PEP 723 metadata. On first use, `uv run` resolves those dependencies into uv's shared cache. Later sessions with the same script and dependency set reuse the cached environment instead of reinstalling packages in each workspace.
 
 ```bash
 uv run scripts/audio_tool.py youtube "https://www.youtube.com/watch?v=..." --format mp3
 uv run scripts/audio_tool.py analyze ./audio/song.mp3
 uv run scripts/audio_tool.py --full analyze ./audio/song.mp3
 ```
+
+`ffmpeg` is still a system prerequisite because YouTube audio extraction uses `yt-dlp` post-processing for conversion.
 
 YouTube links with playlist parameters stay focused on the single requested video. When no `--output-dir` is provided, YouTube downloads go into a new `beat-it-...` folder under `~/Downloads`; if explicit comprehensive analysis is requested, `metadata.json` is written into that same folder after it completes.
 
